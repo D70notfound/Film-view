@@ -31,4 +31,11 @@
     <string name="pip_action_close">Schließen</string>
     <string name="notification_downloading">Wird heruntergeladen…</string>
     <string name="share_via">Teilen via</string>
+    <string name="btn_play">▶ Abspielen</string>
+    <string name="btn_my_list">+ Meine Liste</string>
+    <string name="category_new">Neu &amp; Beliebt</string>
+    <string name="category_action">Action</string>
+    <string name="category_anime">Anime</string>
+    <string name="category_series">Serien</string>
+    <string name="category_comedy">Komödie</string>
 </resources>
