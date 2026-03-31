@@ -38,4 +38,17 @@
     <string name="category_anime">Anime</string>
     <string name="category_series">Serien</string>
     <string name="category_comedy">Komödie</string>
+    <string name="category_thriller">Thriller</string>
+    <string name="btn_view_details">Details ansehen</string>
+    <string name="btn_delete_all">Alle löschen</string>
+    <string name="no_downloads">Keine Downloads</string>
+    <string name="no_history">Kein Verlauf</string>
+    <string name="no_favorites">Noch keine Favoriten</string>
+    <string name="btn_add_favorite">Zu Favoriten</string>
+    <string name="error_no_internet">Keine Internetverbindung</string>
+    <string name="error_no_content">Keine Inhalte gefunden</string>
+    <string name="error_unknown">Unbekannter Fehler</string>
+    <string name="label_separator"> · </string>
+    <string name="label_rating_prefix"> · ★ </string>
+    <string name="app_logo_letter">N</string>
 </resources>

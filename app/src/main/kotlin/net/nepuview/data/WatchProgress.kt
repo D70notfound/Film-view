@@ -1,9 +1,13 @@
 package net.nepuview.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "watch_progress")
+@Entity(
+    tableName = "watch_progress",
+    indices = [Index(value = ["updatedAt"])]
+)
 data class WatchProgress(
     @PrimaryKey val filmId: String,
     val filmTitle: String,

@@ -1,9 +1,13 @@
 package net.nepuview.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "downloaded_films")
+@Entity(
+    tableName = "downloaded_films",
+    indices = [Index(value = ["downloadedAt"])]
+)
 data class DownloadedFilm(
     @PrimaryKey val filmId: String,
     val filmTitle: String,

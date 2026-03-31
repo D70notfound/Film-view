@@ -42,4 +42,9 @@ class FilmCarouselAdapter(
     override fun onBindViewHolder(holder: CardViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
+
+    override fun onViewRecycled(holder: CardViewHolder) {
+        super.onViewRecycled(holder)
+        Glide.with(holder.itemView).clear(holder.itemView)
+    }
 }

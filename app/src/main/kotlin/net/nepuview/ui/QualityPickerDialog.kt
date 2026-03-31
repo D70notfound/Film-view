@@ -46,7 +46,7 @@ class QualityPickerDialog : DialogFragment() {
                     3 -> "1080p"
                     else -> "auto"
                 }
-                downloadViewModel.startDownload(filmId, title, poster, m3u8)
+                downloadViewModel.startDownload(filmId, title, poster, m3u8, quality)
                 dismiss()
             }
             .setNegativeButton("Abbrechen", null)

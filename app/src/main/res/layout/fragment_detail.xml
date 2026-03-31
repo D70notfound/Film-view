@@ -81,7 +81,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text=" · "
+                    android:text="@string/label_separator"
                     android:textColor="@color/text_dim" />
 
                 <TextView
@@ -94,7 +94,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text=" · ★ "
+                    android:text="@string/label_rating_prefix"
                     android:textColor="@color/yellow_primary" />
 
                 <TextView
@@ -166,7 +166,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:layout_marginTop="8dp"
-                android:text="Zu Favoriten" />
+                android:text="@string/btn_add_favorite" />
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

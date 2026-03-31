@@ -3,6 +3,7 @@ package net.nepuview.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import net.nepuview.data.DownloadedFilm
@@ -23,9 +24,14 @@ class DownloadViewModel @Inject constructor(
         .map { it ?: 0L }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
-    val isLowStorage: StateFlow<Boolean> = MutableStateFlow(downloadRepo.isLowStorage())
+    val isLowStorage: StateFlow<Boolean> = flow {
+        while (true) {
+            emit(downloadRepo.isLowStorage())
+            delay(30_000)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), downloadRepo.isLowStorage())
 
-    fun startDownload(filmId: String, filmTitle: String, posterUrl: String, m3u8Url: String) {
+    fun startDownload(filmId: String, filmTitle: String, posterUrl: String, m3u8Url: String, quality: String = "auto") {
         downloadRepo.startDownload(filmId, m3u8Url)
         viewModelScope.launch {
             filmRepo.addDownloadRecord(
@@ -33,7 +39,8 @@ class DownloadViewModel @Inject constructor(
                     filmId = filmId,
                     filmTitle = filmTitle,
                     posterUrl = posterUrl,
-                    m3u8Url = m3u8Url
+                    m3u8Url = m3u8Url,
+                    quality = quality
                 )
             )
         }

@@ -2,6 +2,7 @@ package net.nepuview.adapter
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import net.nepuview.data.Film
@@ -16,8 +17,14 @@ class HomeCategoryAdapter(
     private val sharedPool = RecyclerView.RecycledViewPool()
 
     fun submitCategories(list: List<FilmCategory>) {
+        val diff = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+            override fun getOldListSize() = categories.size
+            override fun getNewListSize() = list.size
+            override fun areItemsTheSame(o: Int, n: Int) = categories[o].label == list[n].label
+            override fun areContentsTheSame(o: Int, n: Int) = categories[o] == list[n]
+        })
         categories = list
-        notifyDataSetChanged()
+        diff.dispatchUpdatesTo(this)
     }
 
     inner class CategoryViewHolder(private val binding: ItemHomeCategoryBinding) :

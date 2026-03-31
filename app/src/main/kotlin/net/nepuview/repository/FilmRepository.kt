@@ -1,6 +1,7 @@
 package net.nepuview.repository
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import net.nepuview.data.*
 import net.nepuview.scraper.ScraperEngine
 import javax.inject.Inject
@@ -31,7 +32,7 @@ class FilmRepository @Inject constructor(
     fun observeFavorites(): Flow<List<FavoriteFilm>> = dao.observeFavorites()
     fun isFavorite(filmId: String): Flow<Boolean> = dao.isFavorite(filmId)
     suspend fun toggleFavorite(film: FavoriteFilm) {
-        if (dao.isFavorite(film.filmId).equals(true)) dao.deleteFavorite(film)
+        if (dao.isFavorite(film.filmId).first()) dao.deleteFavorite(film)
         else dao.upsertFavorite(film)
     }
     suspend fun addFavorite(film: FavoriteFilm) = dao.upsertFavorite(film)

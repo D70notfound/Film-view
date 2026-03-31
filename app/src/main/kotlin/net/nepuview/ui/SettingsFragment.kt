@@ -31,8 +31,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
             true
         }
 
-        findPreference<Preference>("app_version")?.summary =
-            requireContext().packageManager
-                .getPackageInfo(requireContext().packageName, 0).versionName
+        try {
+            findPreference<Preference>("app_version")?.summary =
+                requireContext().packageManager
+                    .getPackageInfo(requireContext().packageName, 0).versionName
+        } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+            // Package always exists; ignore
+        }
     }
 }

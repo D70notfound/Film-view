@@ -25,26 +25,26 @@ class DownloadManagerProvider @Inject constructor() {
             val downloadDir = File(context.filesDir, "downloads")
             downloadDir.mkdirs()
 
-            cache = SimpleCache(downloadDir, NoOpCacheEvictor(), databaseProvider)
+            val localCache = SimpleCache(downloadDir, NoOpCacheEvictor(), databaseProvider)
+            cache = localCache
 
-            val okHttpClient = OkHttpClient.Builder().build()
-            val dataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
+            val dataSourceFactory = OkHttpDataSource.Factory(OkHttpClient.Builder().build())
 
             downloadManager = DownloadManager(
                 context,
                 databaseProvider,
-                cache!!,
+                localCache,
                 dataSourceFactory,
                 Executors.newFixedThreadPool(3)
             ).apply {
                 maxParallelDownloads = 3
             }
         }
-        return downloadManager!!
+        return checkNotNull(downloadManager)
     }
 
     fun getCache(context: Context): SimpleCache {
         get(context) // ensure initialized
-        return cache!!
+        return checkNotNull(cache)
     }
 }
