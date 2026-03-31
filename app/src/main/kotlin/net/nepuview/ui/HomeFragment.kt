@@ -11,12 +11,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
-import androidx.viewpager2.widget.ViewPager2
-import com.google.android.material.chip.Chip
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.bumptech.glide.Glide
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
-import net.nepuview.R
-import net.nepuview.adapter.FilmPagerAdapter
+import net.nepuview.adapter.HomeCategoryAdapter
 import net.nepuview.data.Film
 import net.nepuview.databinding.FragmentHomeBinding
 import net.nepuview.viewmodel.HomeUiState
@@ -28,39 +27,27 @@ class HomeFragment : Fragment() {
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
     private val viewModel: HomeViewModel by viewModels()
+    private lateinit var categoryAdapter: HomeCategoryAdapter
 
-    private val moods = listOf("Alle", "Action", "Chill", "Thriller", "Comedy", "Drama", "Anime")
-    private lateinit var pagerAdapter: FilmPagerAdapter
-
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        setupMoodChips()
-        setupViewPager()
+        setupCategoryList()
         observeState()
     }
 
-    private fun setupMoodChips() {
-        moods.forEach { mood ->
-            val chip = Chip(requireContext()).apply {
-                text = mood
-                isCheckable = true
-                setOnClickListener { viewModel.selectMood(if (mood == "Alle") null else mood) }
-            }
-            binding.moodChipGroup.addView(chip)
-        }
-        (binding.moodChipGroup.getChildAt(0) as? Chip)?.isChecked = true
-    }
-
-    private fun setupViewPager() {
-        pagerAdapter = FilmPagerAdapter { film -> navigateToDetail(film) }
-        binding.viewPager.apply {
-            adapter = pagerAdapter
-            orientation = ViewPager2.ORIENTATION_VERTICAL
+    private fun setupCategoryList() {
+        categoryAdapter = HomeCategoryAdapter { film -> navigateToDetail(film) }
+        binding.recyclerCategories.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = categoryAdapter
+            isNestedScrollingEnabled = false
         }
     }
 
@@ -69,13 +56,44 @@ class HomeFragment : Fragment() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
                     binding.shimmerLayout.isVisible = state is HomeUiState.Loading
-                    binding.viewPager.isVisible = state is HomeUiState.Success
+                    binding.contentScroll.isVisible = state is HomeUiState.Success
                     binding.errorText.isVisible = state is HomeUiState.Error
-                    if (state is HomeUiState.Success) pagerAdapter.submitList(state.films)
-                    if (state is HomeUiState.Error) binding.errorText.text = state.message
+
+                    when (state) {
+                        is HomeUiState.Success -> bindSuccess(state)
+                        is HomeUiState.Error -> binding.errorText.text = state.message
+                        else -> Unit
+                    }
                 }
             }
         }
+    }
+
+    private fun bindSuccess(state: HomeUiState.Success) {
+        val hero = state.heroFilm
+
+        // Hero banner
+        Glide.with(this)
+            .load(hero.posterUrl)
+            .centerCrop()
+            .into(binding.posterHero)
+
+        binding.heroTitle.text = hero.title
+        binding.heroGenre.text = hero.genre.take(3).joinToString(" · ")
+            .ifBlank { hero.type.name.lowercase().replaceFirstChar { it.uppercaseChar() } }
+
+        binding.btnPlay.setOnClickListener { navigateToDetail(hero) }
+        binding.btnMyList.setOnClickListener { viewModel.addToWatchlist(hero) }
+
+        // Long-press on hero → preview sheet
+        binding.heroContainer.setOnLongClickListener {
+            PreviewBottomSheet.newInstance(hero)
+                .show(childFragmentManager, "preview")
+            true
+        }
+
+        // Carousels
+        categoryAdapter.submitCategories(state.categories)
     }
 
     private fun navigateToDetail(film: Film) {
