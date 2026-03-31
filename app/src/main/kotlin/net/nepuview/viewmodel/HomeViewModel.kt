@@ -11,6 +11,7 @@ import net.nepuview.data.Film
 import net.nepuview.data.FilmCategory
 import net.nepuview.data.WatchlistFilm
 import net.nepuview.repository.FilmRepository
+import net.nepuview.util.NetworkMonitor
 import javax.inject.Inject
 
 sealed class HomeUiState {
@@ -24,7 +25,8 @@ sealed class HomeUiState {
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val repo: FilmRepository
+    private val repo: FilmRepository,
+    private val networkMonitor: NetworkMonitor
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
@@ -47,6 +49,10 @@ class HomeViewModel @Inject constructor(
     fun loadCategories() {
         viewModelScope.launch {
             _uiState.value = HomeUiState.Loading
+            if (!networkMonitor.isCurrentlyOnline()) {
+                _uiState.value = HomeUiState.Error("Keine Internetverbindung")
+                return@launch
+            }
             try {
                 val categories = coroutineScope {
                     categoryDefs.map { (label, genre) ->

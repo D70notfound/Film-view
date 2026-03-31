@@ -2,7 +2,12 @@ package net.nepuview.scraper
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import android.webkit.JavascriptInterface
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -12,6 +17,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import net.nepuview.data.Film
 import net.nepuview.data.FilmType
 import org.json.JSONArray
+import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,155 +26,326 @@ class ScraperEngine @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     companion object {
+        private const val TAG = "ScraperEngine"
         private const val BASE_URL = "https://nepu.to"
         private const val SEARCH_URL = "$BASE_URL/search/"
+        private const val TIMEOUT_MS = 30_000L
+        private const val USER_AGENT =
+            "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
     }
 
     fun loadHome(mood: String? = null): Flow<List<Film>> = callbackFlow {
         val url = if (mood != null) "$BASE_URL/?genre=${mood}" else BASE_URL
-        scrapeFilmList(url) { films -> trySend(films) }
+        scrapeFilmList(url,
+            onResult = { films -> trySend(films) },
+            onError = { msg ->
+                Log.e(TAG, "loadHome($mood) failed: $msg")
+                trySend(emptyList())
+            }
+        )
         awaitClose()
     }
 
     fun search(query: String): Flow<List<Film>> = callbackFlow {
         val url = "$SEARCH_URL${query.trim().replace(" ", "+")}"
-        scrapeFilmList(url) { films -> trySend(films) }
+        scrapeFilmList(url,
+            onResult = { films -> trySend(films) },
+            onError = { msg ->
+                Log.e(TAG, "search($query) failed: $msg")
+                trySend(emptyList())
+            }
+        )
         awaitClose()
     }
 
     fun loadDetail(detailUrl: String): Flow<Film?> = callbackFlow {
-        scrapeDetail(detailUrl) { film -> trySend(film) }
+        scrapeDetail(detailUrl,
+            onResult = { film -> trySend(film) },
+            onError = { msg ->
+                Log.e(TAG, "loadDetail($detailUrl) failed: $msg")
+                trySend(null)
+            }
+        )
         awaitClose()
     }
 
     @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
-    private fun scrapeFilmList(url: String, onResult: (List<Film>) -> Unit) {
-        val webView = WebView(context).apply {
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-            settings.userAgentString =
-                "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36"
-        }
+    private fun scrapeFilmList(
+        url: String,
+        onResult: (List<Film>) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val mainHandler = Handler(Looper.getMainLooper())
+        var completed = false
 
-        val bridge = object {
-            @JavascriptInterface
-            fun onFilmsReady(json: String) {
-                val films = parseFilmListJson(json)
-                onResult(films)
+        val timeoutRunnable = Runnable {
+            if (!completed) {
+                completed = true
+                Log.w(TAG, "Timeout scraping film list: $url")
+                onError("Timeout beim Laden der Film-Liste")
             }
         }
-        webView.addJavascriptInterface(bridge, "Android")
+        mainHandler.postDelayed(timeoutRunnable, TIMEOUT_MS)
 
-        webView.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView, pageUrl: String) {
-                view.evaluateJavascript(FILM_LIST_JS, null)
+        mainHandler.post {
+            val webView = WebView(context)
+            try {
+                webView.settings.apply {
+                    javaScriptEnabled = true
+                    domStorageEnabled = true
+                    allowFileAccess = false
+                    allowContentAccess = false
+                    userAgentString = USER_AGENT
+                }
+
+                val bridge = object {
+                    @JavascriptInterface
+                    fun onFilmsReady(json: String) {
+                        mainHandler.removeCallbacks(timeoutRunnable)
+                        if (!completed) {
+                            completed = true
+                            val films = parseFilmListJson(json)
+                            Log.d(TAG, "Scraped ${films.size} films from $url")
+                            onResult(films)
+                            mainHandler.post { webView.destroy() }
+                        }
+                    }
+                }
+                webView.addJavascriptInterface(bridge, "Android")
+
+                webView.webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView, pageUrl: String) {
+                        view.evaluateJavascript(FILM_LIST_JS, null)
+                    }
+
+                    override fun onReceivedError(
+                        view: WebView,
+                        request: WebResourceRequest,
+                        error: WebResourceError
+                    ) {
+                        if (request.isForMainFrame) {
+                            mainHandler.removeCallbacks(timeoutRunnable)
+                            if (!completed) {
+                                completed = true
+                                val msg = "WebView Fehler: ${error.description}"
+                                Log.e(TAG, msg)
+                                onError(msg)
+                                mainHandler.post { webView.destroy() }
+                            }
+                        }
+                    }
+                }
+                webView.loadUrl(url)
+            } catch (e: Exception) {
+                mainHandler.removeCallbacks(timeoutRunnable)
+                if (!completed) {
+                    completed = true
+                    Log.e(TAG, "Exception scraping $url", e)
+                    onError(e.message ?: "Unbekannter Fehler")
+                    webView.destroy()
+                }
             }
         }
-        webView.loadUrl(url)
     }
 
     @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
-    private fun scrapeDetail(url: String, onResult: (Film?) -> Unit) {
-        val webView = WebView(context).apply {
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-            settings.userAgentString =
-                "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36"
-        }
+    private fun scrapeDetail(
+        url: String,
+        onResult: (Film?) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val mainHandler = Handler(Looper.getMainLooper())
+        var completed = false
 
-        val bridge = object {
-            @JavascriptInterface
-            fun onDetailReady(json: String) {
-                val film = parseDetailJson(json)
-                onResult(film)
+        val timeoutRunnable = Runnable {
+            if (!completed) {
+                completed = true
+                Log.w(TAG, "Timeout scraping detail: $url")
+                onError("Timeout beim Laden der Film-Details")
             }
         }
-        webView.addJavascriptInterface(bridge, "Android")
+        mainHandler.postDelayed(timeoutRunnable, TIMEOUT_MS)
 
-        webView.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView, pageUrl: String) {
-                view.evaluateJavascript(DETAIL_JS, null)
+        mainHandler.post {
+            val webView = WebView(context)
+            try {
+                webView.settings.apply {
+                    javaScriptEnabled = true
+                    domStorageEnabled = true
+                    allowFileAccess = false
+                    allowContentAccess = false
+                    userAgentString = USER_AGENT
+                }
+
+                val bridge = object {
+                    @JavascriptInterface
+                    fun onDetailReady(json: String) {
+                        mainHandler.removeCallbacks(timeoutRunnable)
+                        if (!completed) {
+                            completed = true
+                            val film = parseDetailJson(json)
+                            Log.d(TAG, "Scraped detail: ${film?.title} from $url")
+                            onResult(film)
+                            mainHandler.post { webView.destroy() }
+                        }
+                    }
+                }
+                webView.addJavascriptInterface(bridge, "Android")
+
+                webView.webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView, pageUrl: String) {
+                        view.evaluateJavascript(DETAIL_JS, null)
+                    }
+
+                    override fun onReceivedError(
+                        view: WebView,
+                        request: WebResourceRequest,
+                        error: WebResourceError
+                    ) {
+                        if (request.isForMainFrame) {
+                            mainHandler.removeCallbacks(timeoutRunnable)
+                            if (!completed) {
+                                completed = true
+                                val msg = "WebView Fehler: ${error.description}"
+                                Log.e(TAG, msg)
+                                onError(msg)
+                                mainHandler.post { webView.destroy() }
+                            }
+                        }
+                    }
+                }
+                webView.loadUrl(url)
+            } catch (e: Exception) {
+                mainHandler.removeCallbacks(timeoutRunnable)
+                if (!completed) {
+                    completed = true
+                    Log.e(TAG, "Exception scraping detail $url", e)
+                    onError(e.message ?: "Unbekannter Fehler")
+                    webView.destroy()
+                }
             }
         }
-        webView.loadUrl(url)
     }
 
     private fun parseFilmListJson(json: String): List<Film> {
         return try {
             val arr = JSONArray(json)
-            (0 until arr.length()).map { i ->
-                val obj = arr.getJSONObject(i)
-                Film(
-                    id = obj.optString("id", obj.optString("title").hashCode().toString()),
-                    title = obj.optString("title"),
-                    posterUrl = obj.optString("poster"),
-                    detailUrl = obj.optString("url"),
-                    year = obj.optString("year"),
-                    rating = obj.optDouble("rating", 0.0).toFloat(),
-                    type = when (obj.optString("type").lowercase()) {
-                        "series", "serie" -> FilmType.SERIES
-                        "anime" -> FilmType.ANIME
-                        else -> FilmType.MOVIE
-                    }
-                )
+            val result = mutableListOf<Film>()
+            for (i in 0 until arr.length()) {
+                try {
+                    val obj = arr.getJSONObject(i)
+                    val title = obj.optString("title").trim()
+                    if (title.isBlank()) continue
+                    result.add(
+                        Film(
+                            id = obj.optString("id").ifBlank {
+                                title.hashCode().toString()
+                            },
+                            title = title,
+                            posterUrl = obj.optString("poster"),
+                            detailUrl = obj.optString("url"),
+                            year = obj.optString("year"),
+                            rating = obj.optDouble("rating", 0.0).toFloat()
+                                .coerceIn(0f, 10f),
+                            type = parseFilmType(obj.optString("type"))
+                        )
+                    )
+                } catch (itemEx: Exception) {
+                    Log.w(TAG, "Skipping malformed film item at index $i", itemEx)
+                }
             }
+            result
         } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse film list JSON", e)
             emptyList()
         }
     }
 
     private fun parseDetailJson(json: String): Film? {
         return try {
-            val obj = org.json.JSONObject(json)
+            val obj = JSONObject(json)
+            val title = obj.optString("title").trim()
+            if (title.isBlank()) {
+                Log.w(TAG, "Detail JSON has no title")
+                return null
+            }
             val genreArr = obj.optJSONArray("genres")
-            val genres = if (genreArr != null) {
-                (0 until genreArr.length()).map { genreArr.getString(it) }
-            } else emptyList()
+            val genres = buildList {
+                if (genreArr != null) {
+                    for (i in 0 until genreArr.length()) {
+                        val g = genreArr.optString(i).trim()
+                        if (g.isNotBlank()) add(g)
+                    }
+                }
+            }
             Film(
-                id = obj.optString("id", obj.optString("title").hashCode().toString()),
-                title = obj.optString("title"),
+                id = obj.optString("id").ifBlank { title.hashCode().toString() },
+                title = title,
                 posterUrl = obj.optString("poster"),
                 detailUrl = obj.optString("url"),
                 playerUrl = obj.optString("playerUrl"),
                 year = obj.optString("year"),
                 duration = obj.optString("duration"),
-                rating = obj.optDouble("rating", 0.0).toFloat(),
+                rating = obj.optDouble("rating", 0.0).toFloat().coerceIn(0f, 10f),
                 description = obj.optString("description"),
                 genre = genres,
-                type = when (obj.optString("type").lowercase()) {
-                    "series", "serie" -> FilmType.SERIES
-                    "anime" -> FilmType.ANIME
-                    else -> FilmType.MOVIE
-                }
+                type = parseFilmType(obj.optString("type"))
             )
         } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse detail JSON", e)
             null
         }
     }
 
-    // JS injected into the film-list page to extract card data
+    private fun parseFilmType(raw: String): FilmType = when (raw.lowercase().trim()) {
+        "series", "serie", "tv" -> FilmType.SERIES
+        "anime" -> FilmType.ANIME
+        else -> FilmType.MOVIE
+    }
+
+    // ── JavaScript injected into film-list pages ──────────────────────────────
+    // NOTE: These selectors target the most common nepu.to DOM patterns.
+    // If nepu.to changes its HTML structure, update the selector chains below.
     private val FILM_LIST_JS = """
         (function() {
             try {
-                var cards = document.querySelectorAll('.film-poster, .flw-item, article.item, .movies .item');
+                var cards = document.querySelectorAll(
+                    '.film-poster, .flw-item, .item, article.item, .movies .item, ' +
+                    '[class*="film-item"], [class*="movie-item"], [class*="item-card"]'
+                );
                 var results = [];
                 cards.forEach(function(card) {
-                    var a = card.querySelector('a[href]');
-                    var img = card.querySelector('img');
-                    var title = card.querySelector('.film-name, .name, h2, h3');
-                    var year = card.querySelector('.fdi-item, .year');
-                    var rating = card.querySelector('.film-poster-quality, .rating');
-                    var type = card.querySelector('.fdi-type, .type');
-                    if (!a) return;
-                    results.push({
-                        id: a.href,
-                        title: title ? title.textContent.trim() : (img ? img.alt : ''),
-                        url: a.href,
-                        poster: img ? (img.dataset.src || img.src) : '',
-                        year: year ? year.textContent.trim() : '',
-                        rating: rating ? parseFloat(rating.textContent) || 0 : 0,
-                        type: type ? type.textContent.trim().toLowerCase() : 'movie'
-                    });
+                    try {
+                        var a = card.querySelector('a[href]');
+                        var img = card.querySelector('img[data-src], img[src]');
+                        var titleEl = card.querySelector(
+                            '.film-name, .name, .title, [class*="title"], h2, h3, h4'
+                        );
+                        var yearEl = card.querySelector(
+                            '.fdi-item, .year, [class*="year"], [class*="date"]'
+                        );
+                        var ratingEl = card.querySelector(
+                            '.film-poster-quality, .rating, [class*="rating"], [class*="score"]'
+                        );
+                        var typeEl = card.querySelector(
+                            '.fdi-type, .type, [class*="type"]'
+                        );
+                        if (!a || !a.href) return;
+                        var title = titleEl
+                            ? titleEl.textContent.trim()
+                            : (img ? img.alt : '');
+                        if (!title) return;
+                        results.push({
+                            id: a.href,
+                            title: title,
+                            url: a.href,
+                            poster: img ? (img.dataset.src || img.getAttribute('data-lazy') || img.src) : '',
+                            year: yearEl ? yearEl.textContent.trim() : '',
+                            rating: ratingEl ? parseFloat(ratingEl.textContent) || 0 : 0,
+                            type: typeEl ? typeEl.textContent.trim().toLowerCase() : 'movie'
+                        });
+                    } catch(itemErr) {}
                 });
                 Android.onFilmsReady(JSON.stringify(results));
             } catch(e) {
@@ -177,22 +354,71 @@ class ScraperEngine @Inject constructor(
         })();
     """.trimIndent()
 
-    // JS injected into a detail page to extract film metadata
     private val DETAIL_JS = """
         (function() {
             try {
-                var title = document.querySelector('h2.film-name, .heading-name, h1')?.textContent?.trim() || '';
-                var poster = document.querySelector('.film-poster img, .detail-infor .film-poster img')?.src || '';
-                var desc = document.querySelector('.film-description .text, .description, .overview')?.textContent?.trim() || '';
-                var year = document.querySelector('.item.mr-3, [itemprop="dateCreated"]')?.textContent?.trim() || '';
-                var duration = document.querySelector('.item:not(.mr-3)')?.textContent?.trim() || '';
-                var rating = parseFloat(document.querySelector('.item.rating, .vote_average')?.textContent) || 0;
-                var playerLink = document.querySelector('a.btn-play, a[href*="watch"], .play-btn')?.href || '';
-                var genres = Array.from(document.querySelectorAll('.item a[href*="genre"], .genres a')).map(a => a.textContent.trim());
-                var type = document.querySelector('.item.type')?.textContent?.trim()?.toLowerCase() || 'movie';
+                var title = (
+                    document.querySelector('h2.film-name, .heading-name, h1.title, h1') ||
+                    { textContent: '' }
+                ).textContent.trim();
+
+                var posterEl = document.querySelector(
+                    '.film-poster img, .detail-infor img, [class*="poster"] img, ' +
+                    'meta[property="og:image"]'
+                );
+                var poster = posterEl
+                    ? (posterEl.src || posterEl.content || '')
+                    : '';
+
+                var desc = (
+                    document.querySelector(
+                        '.film-description .text, .description, .overview, ' +
+                        '[class*="synopsis"], [class*="description"]'
+                    ) || { textContent: '' }
+                ).textContent.trim();
+
+                var year = (
+                    document.querySelector(
+                        '.item.mr-3, [itemprop="dateCreated"], [class*="year"]'
+                    ) || { textContent: '' }
+                ).textContent.trim();
+
+                var duration = (
+                    document.querySelector(
+                        '.item:not(.mr-3):not(.type), [class*="duration"], [class*="runtime"]'
+                    ) || { textContent: '' }
+                ).textContent.trim();
+
+                var ratingEl = document.querySelector(
+                    '.item.rating, .vote_average, [class*="rating"], [itemprop="ratingValue"]'
+                );
+                var rating = ratingEl ? parseFloat(ratingEl.textContent) || 0 : 0;
+
+                var playerEl = document.querySelector(
+                    'a.btn-play, a[href*="watch"], .play-btn, [class*="play"] a'
+                );
+                var playerUrl = playerEl ? playerEl.href : '';
+
+                var genres = Array.from(
+                    document.querySelectorAll(
+                        '.item a[href*="genre"], .genres a, [class*="genre"] a'
+                    )
+                ).map(function(a) { return a.textContent.trim(); })
+                 .filter(function(g) { return g.length > 0; });
+
+                var typeEl = document.querySelector('.item.type, [class*="type"]');
+                var type = typeEl ? typeEl.textContent.trim().toLowerCase() : 'movie';
+
                 Android.onDetailReady(JSON.stringify({
-                    title, poster, description: desc, year, duration,
-                    rating, playerUrl: playerLink, genres, type,
+                    title: title,
+                    poster: poster,
+                    description: desc,
+                    year: year,
+                    duration: duration,
+                    rating: rating,
+                    playerUrl: playerUrl,
+                    genres: genres,
+                    type: type,
                     url: window.location.href
                 }));
             } catch(e) {

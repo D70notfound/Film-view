@@ -3,10 +3,12 @@ package net.nepuview.ui
 import android.annotation.SuppressLint
 import android.app.PictureInPictureParams
 import android.content.res.Configuration
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.util.Rational
 import android.view.*
 import android.webkit.*
@@ -41,7 +43,12 @@ class PlayerFragment : Fragment() {
     private var currentPositionMs = 0L
     private var estimatedDurationMs = 0L
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    // Whitelisted hosts — only these domains are allowed to load
+    private val allowedHosts = setOf("nepu.to", "vr-m.net")
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
         _binding = FragmentPlayerBinding.inflate(inflater, container, false)
         return binding.root
     }
@@ -61,41 +68,84 @@ class PlayerFragment : Fragment() {
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
-                allowContentAccess = true
+                // Hardened: no file/content access needed for streaming
+                allowFileAccess = false
+                allowContentAccess = false
+                // Required for video autoplay inside the controlled WebView
                 mediaPlaybackRequiresUserGesture = false
-                userAgentString = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36"
+                userAgentString =
+                    "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 " +
+                    "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
             }
 
             webViewClient = object : WebViewClient() {
-                override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                    val url = request.url.toString()
-                    if (url.contains(".m3u8") || url.contains("m3u8")) {
-                        requireActivity().runOnUiThread { viewModel.onM3u8Found(url) }
+                override fun shouldInterceptRequest(
+                    view: WebView,
+                    request: WebResourceRequest
+                ): WebResourceResponse? {
+                    val uri = request.url ?: return null
+                    val urlStr = uri.toString()
+                    val host = uri.host?.lowercase() ?: return blockResponse()
+
+                    // Block any non-whitelisted host
+                    if (!isAllowedHost(host)) {
+                        Log.d("PlayerFragment", "Blocked request to $host")
+                        return blockResponse()
                     }
-                    val host = request.url.host?.lowercase() ?: return null
-                    val allowed = setOf("nepu.to", "vr-m.net")
-                    if (!allowed.any { host == it || host.endsWith(".$it") }) {
-                        return WebResourceResponse("text/plain", "utf-8", null)
+
+                    // Intercept M3U8 — validate host before passing to ViewModel
+                    if (isM3u8Url(uri) && isAllowedHost(host)) {
+                        Log.d("PlayerFragment", "M3U8 found: $urlStr")
+                        requireActivity().runOnUiThread { viewModel.onM3u8Found(urlStr) }
                     }
                     return null
                 }
 
-                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                    val host = request.url.host?.lowercase() ?: return true
-                    val allowed = setOf("nepu.to", "vr-m.net")
-                    return !allowed.any { host == it || host.endsWith(".$it") }
+                override fun shouldOverrideUrlLoading(
+                    view: WebView,
+                    request: WebResourceRequest
+                ): Boolean {
+                    val host = request.url?.host?.lowercase() ?: return true
+                    return !isAllowedHost(host)
+                }
+
+                override fun onReceivedError(
+                    view: WebView,
+                    request: WebResourceRequest,
+                    error: WebResourceError
+                ) {
+                    if (request.isForMainFrame) {
+                        Log.e("PlayerFragment", "WebView error: ${error.description}")
+                    }
                 }
             }
 
             webChromeClient = object : WebChromeClient() {
-                override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message?): Boolean {
-                    return false // block popups
-                }
+                // Block all popup windows
+                override fun onCreateWindow(
+                    view: WebView, isDialog: Boolean,
+                    isUserGesture: Boolean, resultMsg: android.os.Message?
+                ) = false
             }
 
             loadUrl(args.playerUrl)
         }
     }
+
+    /** Returns true if the URI looks like an HLS manifest. */
+    private fun isM3u8Url(uri: Uri): Boolean {
+        val path = uri.path?.lowercase() ?: return false
+        return path.endsWith(".m3u8") || path.contains(".m3u8?") ||
+               uri.toString().contains("playlist.m3u8") ||
+               uri.toString().contains("master.m3u8")
+    }
+
+    /** Returns true if host is within the allowed domain list (exact or subdomain). */
+    private fun isAllowedHost(host: String): Boolean =
+        allowedHosts.any { allowed -> host == allowed || host.endsWith(".$allowed") }
+
+    private fun blockResponse() =
+        WebResourceResponse("text/plain", "utf-8", null)
 
     private fun observeM3u8() {
         viewLifecycleOwner.lifecycleScope.launch {
@@ -104,13 +154,12 @@ class PlayerFragment : Fragment() {
                     binding.btnDownload.isVisible = url != null
                     binding.btnDownload.setOnClickListener {
                         url ?: return@setOnClickListener
-                        val dialog = QualityPickerDialog.newInstance(
+                        QualityPickerDialog.newInstance(
                             filmId = args.filmId,
                             filmTitle = args.filmTitle,
                             posterUrl = args.posterUrl,
                             m3u8Url = url
-                        )
-                        dialog.show(childFragmentManager, "quality")
+                        ).show(childFragmentManager, "quality")
                     }
                 }
             }
@@ -129,7 +178,8 @@ class PlayerFragment : Fragment() {
     private fun enterFullscreen() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             requireActivity().window.insetsController?.hide(
-                android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars()
+                android.view.WindowInsets.Type.statusBars() or
+                android.view.WindowInsets.Type.navigationBars()
             )
         } else {
             @Suppress("DEPRECATION")
@@ -144,11 +194,13 @@ class PlayerFragment : Fragment() {
     private fun exitFullscreen() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             requireActivity().window.insetsController?.show(
-                android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars()
+                android.view.WindowInsets.Type.statusBars() or
+                android.view.WindowInsets.Type.navigationBars()
             )
         } else {
             @Suppress("DEPRECATION")
-            requireActivity().window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            requireActivity().window.decorView.systemUiVisibility =
+                View.SYSTEM_UI_FLAG_VISIBLE
         }
     }
 
@@ -173,6 +225,7 @@ class PlayerFragment : Fragment() {
 
     override fun onDestroyView() {
         progressHandler.removeCallbacks(saveProgressRunnable)
+        binding.webView.stopLoading()
         binding.webView.destroy()
         super.onDestroyView()
         _binding = null
