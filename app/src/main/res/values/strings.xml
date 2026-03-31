@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NepuView</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_search">Suche</string>
+    <string name="nav_favorites">Favoriten</string>
+    <string name="nav_downloads">Downloads</string>
+    <string name="nav_history">Verlauf</string>
+    <string name="download_channel_name">Downloads</string>
+    <string name="download_channel_desc">Zeigt aktive Download-Benachrichtigungen</string>
+    <string name="btn_watch">Jetzt ansehen</string>
+    <string name="btn_download">Herunterladen</string>
+    <string name="btn_cancel">Abbrechen</string>
+    <string name="btn_delete">Löschen</string>
+    <string name="btn_resume">Fortsetzen</string>
+    <string name="continue_watching">Weiterschauen</string>
+    <string name="search_hint">Film oder Serie suchen...</string>
+    <string name="no_results">Keine Ergebnisse gefunden</string>
+    <string name="offline_badge">Offline</string>
+    <string name="storage_warning">Weniger als 500 MB freier Speicher</string>
+    <string name="clear_history">Verlauf löschen</string>
+    <string name="settings_quality">Download-Qualität</string>
+    <string name="settings_wifi_only">Nur über WLAN</string>
+    <string name="settings_storage">Speicherort</string>
+    <string name="settings_cache">Cache leeren</string>
+    <string name="settings_about">Über NepuView</string>
+    <string name="quality_auto">Auto</string>
+    <string name="quality_720p">720p</string>
+    <string name="quality_1080p">1080p</string>
+    <string name="quality_480p">480p</string>
+    <string name="pip_action_close">Schließen</string>
+    <string name="notification_downloading">Wird heruntergeladen…</string>
+    <string name="share_via">Teilen via</string>
+</resources>

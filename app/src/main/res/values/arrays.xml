@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="storage_entries">
+        <item>Interner Speicher</item>
+        <item>SD-Karte</item>
+    </string-array>
+    <string-array name="storage_values">
+        <item>internal</item>
+        <item>external</item>
+    </string-array>
+</resources>
