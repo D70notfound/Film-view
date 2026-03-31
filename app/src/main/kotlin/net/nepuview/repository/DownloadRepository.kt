@@ -2,7 +2,7 @@ package net.nepuview.repository
 
 import android.content.Context
 import android.os.StatFs
-import androidx.media3.common.MediaItem
+import android.net.Uri
 import androidx.media3.common.MimeTypes
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
@@ -18,8 +18,7 @@ class DownloadRepository @Inject constructor(
     private val downloadManagerProvider: DownloadManagerProvider
 ) {
     fun startDownload(filmId: String, m3u8Url: String) {
-        val mediaItem = MediaItem.fromUri(m3u8Url)
-        val request = DownloadRequest.Builder(filmId, mediaItem.localConfiguration!!.uri)
+        val request = DownloadRequest.Builder(filmId, Uri.parse(m3u8Url))
             .setMimeType(MimeTypes.APPLICATION_M3U8)
             .build()
         DownloadService.sendAddDownload(

@@ -18,6 +18,8 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import net.nepuview.data.FavoriteFilm
 import net.nepuview.data.Film
 import net.nepuview.databinding.FragmentDetailBinding
@@ -44,12 +46,18 @@ class DetailFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         setupToolbar()
+        setupClickListeners()
         loadBasicInfo()
         loadFullDetail()
     }
 
     private fun setupToolbar() {
         binding.toolbar.setNavigationOnClickListener { findNavController().navigateUp() }
+    }
+
+    private fun setupClickListeners() {
+        binding.btnWatch.setOnClickListener { currentFilm?.let { navigateToPlayer(it) } }
+        binding.btnFavorite.setOnClickListener { currentFilm?.let { toggleFavorite(it) } }
     }
 
     private fun loadBasicInfo() {
@@ -67,6 +75,7 @@ class DetailFragment : Fragment() {
                 .into(object : com.bumptech.glide.request.target.CustomTarget<android.graphics.Bitmap>() {
                     override fun onResourceReady(resource: android.graphics.Bitmap, t: com.bumptech.glide.request.transition.Transition<in android.graphics.Bitmap>?) {
                         Palette.from(resource).generate { palette ->
+                            if (_binding == null) return@generate
                             palette?.getDominantColor(0)?.let { color ->
                                 val gradient = GradientDrawable(
                                     GradientDrawable.Orientation.TOP_BOTTOM,
@@ -94,17 +103,12 @@ class DetailFragment : Fragment() {
                     binding.filmGenres.text = film.genre.joinToString(" · ")
                     binding.progressBanner.isVisible = false
 
-                    viewLifecycleOwner.lifecycleScope.launch {
-                        val progress = repo.getProgress(film.id)
-                        if (progress != null && progress.progressPercent > 0) {
-                            binding.progressBanner.isVisible = true
-                            binding.progressBar.progress = progress.progressPercent
-                            binding.progressText.text = "${progress.progressPercent}% gesehen"
-                        }
+                    val progress = withContext(Dispatchers.IO) { repo.getProgress(film.id) }
+                    if (progress != null && progress.progressPercent > 0) {
+                        binding.progressBanner.isVisible = true
+                        binding.progressBar.progress = progress.progressPercent
+                        binding.progressText.text = "${progress.progressPercent}% gesehen"
                     }
-
-                    binding.btnWatch.setOnClickListener { navigateToPlayer(film) }
-                    binding.btnFavorite.setOnClickListener { toggleFavorite(film) }
                 }
             }
         }

@@ -66,8 +66,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun observeDestinationChanges() {
         val fullscreenDests = setOf(
-            net.nepuview.R.id.playerFragment,
-            net.nepuview.R.id.homeFragment
+            net.nepuview.R.id.playerFragment
         )
         navController.addOnDestinationChangedListener { _, destination, _ ->
             val hide = destination.id in fullscreenDests
