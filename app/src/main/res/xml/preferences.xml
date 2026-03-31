@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory android:title="Downloads">
+
+        <ListPreference
+            android:key="download_quality"
+            android:title="@string/settings_quality"
+            android:summary="%s"
+            android:defaultValue="720p" />
+
+        <SwitchPreferenceCompat
+            android:key="wifi_only"
+            android:title="@string/settings_wifi_only"
+            android:defaultValue="true" />
+
+        <ListPreference
+            android:key="storage_location"
+            android:title="@string/settings_storage"
+            android:entries="@array/storage_entries"
+            android:entryValues="@array/storage_values"
+            android:defaultValue="internal" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="App">
+
+        <Preference
+            android:key="clear_cache"
+            android:title="@string/settings_cache" />
+
+        <Preference
+            android:key="app_version"
+            android:title="Version"
+            android:enabled="false" />
+
+        <Preference
+            android:key="about"
+            android:title="@string/settings_about"
+            android:summary="NepuView — Ein Projekt von D70notfound" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>
