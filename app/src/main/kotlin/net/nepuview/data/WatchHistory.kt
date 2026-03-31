@@ -1,9 +1,13 @@
 package net.nepuview.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "watch_history")
+@Entity(
+    tableName = "watch_history",
+    indices = [Index(value = ["filmId"]), Index(value = ["watchedAt"])]
+)
 data class WatchHistory(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val filmId: String,

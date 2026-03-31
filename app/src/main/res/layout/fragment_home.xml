@@ -90,7 +90,7 @@
                     android:layout_gravity="top|start"
                     android:layout_marginStart="16dp"
                     android:layout_marginTop="20dp"
-                    android:text="N"
+                    android:text="@string/app_logo_letter"
                     android:textColor="@color/red_primary"
                     android:textSize="32sp"
                     android:textStyle="bold"

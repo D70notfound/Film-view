@@ -42,4 +42,9 @@ class FilmGridAdapter(
     override fun onBindViewHolder(holder: FilmViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
+
+    override fun onViewRecycled(holder: FilmViewHolder) {
+        super.onViewRecycled(holder)
+        Glide.with(holder.itemView).clear(holder.itemView)
+    }
 }
