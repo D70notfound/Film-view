@@ -22,4 +22,5 @@
     <color name="text_dim">#3a4560</color>
     <color name="white">#FFFFFF</color>
     <color name="transparent">#00000000</color>
+    <color name="ic_launcher_background">#e63946</color>
 </resources>
