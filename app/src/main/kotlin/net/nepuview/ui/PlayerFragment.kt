@@ -24,6 +24,20 @@ import kotlinx.coroutines.launch
 import net.nepuview.databinding.FragmentPlayerBinding
 import net.nepuview.viewmodel.PlayerViewModel
 
+private const val POSITION_JS = """
+(function() {
+    var v = document.querySelector('video');
+    if (v) {
+        Android.onPosition(
+            Math.round(v.currentTime * 1000),
+            Math.round(v.duration * 1000)
+        );
+    } else {
+        Android.onPosition(0, 0);
+    }
+})();
+"""
+
 @AndroidEntryPoint
 class PlayerFragment : Fragment() {
 
@@ -35,13 +49,25 @@ class PlayerFragment : Fragment() {
     private val progressHandler = Handler(Looper.getMainLooper())
     private val saveProgressRunnable = object : Runnable {
         override fun run() {
-            viewModel.saveProgress(currentPositionMs, estimatedDurationMs)
+            // Inject JS to read video position; result arrives via PositionBridge.onPosition
+            _binding?.webView?.evaluateJavascript(POSITION_JS, null)
             progressHandler.postDelayed(this, 5_000)
         }
     }
 
     private var currentPositionMs = 0L
     private var estimatedDurationMs = 0L
+
+    private inner class PositionBridge {
+        @JavascriptInterface
+        fun onPosition(posMs: Long, durMs: Long) {
+            if (posMs > 0 || durMs > 0) {
+                currentPositionMs = posMs
+                estimatedDurationMs = durMs
+                viewModel.saveProgress(posMs, durMs)
+            }
+        }
+    }
 
     // Whitelisted hosts — only these domains are allowed to load
     private val allowedHosts = setOf("nepu.to", "vr-m.net")
@@ -62,9 +88,10 @@ class PlayerFragment : Fragment() {
         viewModel.addToHistory()
     }
 
-    @SuppressLint("SetJavaScriptEnabled")
+    @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
     private fun setupWebView() {
         binding.webView.apply {
+            addJavascriptInterface(PositionBridge(), "Android")
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true

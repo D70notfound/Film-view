@@ -73,7 +73,7 @@ class DownloadsFragment : Fragment() {
                 }
                 launch {
                     viewModel.totalSize.collect { bytes ->
-                        val mb = bytes / 1_048_576.0
+                        val mb = (bytes ?: 0L) / 1_048_576.0
                         binding.totalSizeText.text = "Gesamt: %.1f MB".format(mb)
                     }
                 }

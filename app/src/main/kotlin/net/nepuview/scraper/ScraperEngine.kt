@@ -39,44 +39,66 @@ class ScraperEngine @Inject constructor(
 
     fun loadHome(mood: String? = null): Flow<List<Film>> = callbackFlow {
         val url = if (mood != null) "$BASE_URL/?genre=${mood}" else BASE_URL
+        var webViewRef: WebView? = null
         scrapeFilmList(url,
             onResult = { films -> trySend(films) },
             onError = { msg ->
                 Log.e(TAG, "loadHome($mood) failed: $msg")
                 trySend(emptyList())
-            }
+            },
+            onWebViewCreated = { webViewRef = it }
         )
-        awaitClose()
+        awaitClose {
+            Handler(Looper.getMainLooper()).post {
+                webViewRef?.destroy()
+                webViewRef = null
+            }
+        }
     }
 
     fun search(query: String): Flow<List<Film>> = callbackFlow {
         val url = "$SEARCH_URL${Uri.encode(query.trim())}"
+        var webViewRef: WebView? = null
         scrapeFilmList(url,
             onResult = { films -> trySend(films) },
             onError = { msg ->
                 Log.e(TAG, "search($query) failed: $msg")
                 trySend(emptyList())
-            }
+            },
+            onWebViewCreated = { webViewRef = it }
         )
-        awaitClose()
+        awaitClose {
+            Handler(Looper.getMainLooper()).post {
+                webViewRef?.destroy()
+                webViewRef = null
+            }
+        }
     }
 
     fun loadDetail(detailUrl: String): Flow<Film?> = callbackFlow {
+        var webViewRef: WebView? = null
         scrapeDetail(detailUrl,
             onResult = { film -> trySend(film) },
             onError = { msg ->
                 Log.e(TAG, "loadDetail($detailUrl) failed: $msg")
                 trySend(null)
-            }
+            },
+            onWebViewCreated = { webViewRef = it }
         )
-        awaitClose()
+        awaitClose {
+            Handler(Looper.getMainLooper()).post {
+                webViewRef?.destroy()
+                webViewRef = null
+            }
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
     private fun scrapeFilmList(
         url: String,
         onResult: (List<Film>) -> Unit,
-        onError: (String) -> Unit
+        onError: (String) -> Unit,
+        onWebViewCreated: ((WebView) -> Unit)? = null
     ) {
         val mainHandler = Handler(Looper.getMainLooper())
         val completed = AtomicBoolean(false)
@@ -95,6 +117,7 @@ class ScraperEngine @Inject constructor(
         mainHandler.post {
             val webView = WebView(context)
             webViewRef = webView
+            onWebViewCreated?.invoke(webView)
             try {
                 webView.settings.apply {
                     javaScriptEnabled = true
@@ -162,7 +185,8 @@ class ScraperEngine @Inject constructor(
     private fun scrapeDetail(
         url: String,
         onResult: (Film?) -> Unit,
-        onError: (String) -> Unit
+        onError: (String) -> Unit,
+        onWebViewCreated: ((WebView) -> Unit)? = null
     ) {
         val mainHandler = Handler(Looper.getMainLooper())
         val completed = AtomicBoolean(false)
@@ -181,6 +205,7 @@ class ScraperEngine @Inject constructor(
         mainHandler.post {
             val webView = WebView(context)
             webViewRef = webView
+            onWebViewCreated?.invoke(webView)
             try {
                 webView.settings.apply {
                     javaScriptEnabled = true

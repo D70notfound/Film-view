@@ -39,12 +39,15 @@ class SearchFragment : Fragment() {
         observeState()
     }
 
+    private var searchBarHasFocus = false
+
     private fun setupSearchBar() {
         binding.searchBar.setOnEditorActionListener { _, _, _ ->
             viewModel.search(binding.searchBar.text.toString())
             true
         }
         binding.searchBar.setOnFocusChangeListener { _, hasFocus ->
+            searchBarHasFocus = hasFocus
             binding.historyGroup.isVisible = hasFocus && viewModel.history.value.isNotEmpty()
         }
     }
@@ -78,6 +81,7 @@ class SearchFragment : Fragment() {
                             }
                             binding.historyGroup.addView(chip)
                         }
+                        binding.historyGroup.isVisible = searchBarHasFocus && history.isNotEmpty()
                     }
                 }
             }
