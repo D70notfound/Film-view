@@ -35,15 +35,7 @@ jobs:
           restore-keys: ${{ runner.os }}-gradle-
 
       - name: Build Debug APK
-        run: |
-          set -o pipefail
-          ./gradlew assembleDebug --stacktrace 2>&1 | tee build.log; EXIT=${PIPESTATUS[0]}
-          if [ $EXIT -ne 0 ]; then
-            echo "=== GRADLE ERROR ===" >&2
-            grep -A 20 "What went wrong:" build.log | head -25 >&2 || tail -30 build.log >&2
-            echo "::error::$(grep -A3 'What went wrong:' build.log | tail -3 | tr '\n' ' ')"
-          fi
-          exit $EXIT
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Run Unit Tests
         run: ./gradlew testDebugUnitTest --stacktrace
