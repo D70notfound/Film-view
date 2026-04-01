@@ -3,6 +3,8 @@ package net.nepuview.viewmodel
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
@@ -69,10 +71,15 @@ class SearchViewModel @Inject constructor(
 
     private fun loadHistory(): List<String> {
         val raw = prefs.getString("terms", "") ?: ""
-        return if (raw.isBlank()) emptyList() else raw.split("|").filter { it.isNotBlank() }
+        if (raw.isBlank()) return emptyList()
+        return try {
+            Gson().fromJson(raw, object : TypeToken<List<String>>() {}.type)
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 
     private fun persistHistory(list: List<String>) {
-        prefs.edit().putString("terms", list.joinToString("|")).apply()
+        prefs.edit().putString("terms", Gson().toJson(list)).apply()
     }
 }

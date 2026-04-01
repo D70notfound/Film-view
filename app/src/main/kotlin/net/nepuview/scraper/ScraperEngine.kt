@@ -2,6 +2,7 @@ package net.nepuview.scraper
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -18,6 +19,7 @@ import net.nepuview.data.Film
 import net.nepuview.data.FilmType
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -48,7 +50,7 @@ class ScraperEngine @Inject constructor(
     }
 
     fun search(query: String): Flow<List<Film>> = callbackFlow {
-        val url = "$SEARCH_URL${query.trim().replace(" ", "+")}"
+        val url = "$SEARCH_URL${Uri.encode(query.trim())}"
         scrapeFilmList(url,
             onResult = { films -> trySend(films) },
             onError = { msg ->
@@ -77,19 +79,22 @@ class ScraperEngine @Inject constructor(
         onError: (String) -> Unit
     ) {
         val mainHandler = Handler(Looper.getMainLooper())
-        var completed = false
+        val completed = AtomicBoolean(false)
+        var webViewRef: WebView? = null
 
         val timeoutRunnable = Runnable {
-            if (!completed) {
-                completed = true
+            if (completed.compareAndSet(false, true)) {
                 Log.w(TAG, "Timeout scraping film list: $url")
                 onError("Timeout beim Laden der Film-Liste")
+                webViewRef?.destroy()
+                webViewRef = null
             }
         }
         mainHandler.postDelayed(timeoutRunnable, TIMEOUT_MS)
 
         mainHandler.post {
             val webView = WebView(context)
+            webViewRef = webView
             try {
                 webView.settings.apply {
                     javaScriptEnabled = true
@@ -103,12 +108,14 @@ class ScraperEngine @Inject constructor(
                     @JavascriptInterface
                     fun onFilmsReady(json: String) {
                         mainHandler.removeCallbacks(timeoutRunnable)
-                        if (!completed) {
-                            completed = true
+                        if (completed.compareAndSet(false, true)) {
                             val films = parseFilmListJson(json)
                             Log.d(TAG, "Scraped ${films.size} films from $url")
                             onResult(films)
-                            mainHandler.post { webView.destroy() }
+                            mainHandler.post {
+                                webView.destroy()
+                                webViewRef = null
+                            }
                         }
                     }
                 }
@@ -126,12 +133,14 @@ class ScraperEngine @Inject constructor(
                     ) {
                         if (request.isForMainFrame) {
                             mainHandler.removeCallbacks(timeoutRunnable)
-                            if (!completed) {
-                                completed = true
+                            if (completed.compareAndSet(false, true)) {
                                 val msg = "WebView Fehler: ${error.description}"
                                 Log.e(TAG, msg)
                                 onError(msg)
-                                mainHandler.post { webView.destroy() }
+                                mainHandler.post {
+                                    webView.destroy()
+                                    webViewRef = null
+                                }
                             }
                         }
                     }
@@ -139,11 +148,11 @@ class ScraperEngine @Inject constructor(
                 webView.loadUrl(url)
             } catch (e: Exception) {
                 mainHandler.removeCallbacks(timeoutRunnable)
-                if (!completed) {
-                    completed = true
+                if (completed.compareAndSet(false, true)) {
                     Log.e(TAG, "Exception scraping $url", e)
                     onError(e.message ?: "Unbekannter Fehler")
                     webView.destroy()
+                    webViewRef = null
                 }
             }
         }
@@ -156,19 +165,22 @@ class ScraperEngine @Inject constructor(
         onError: (String) -> Unit
     ) {
         val mainHandler = Handler(Looper.getMainLooper())
-        var completed = false
+        val completed = AtomicBoolean(false)
+        var webViewRef: WebView? = null
 
         val timeoutRunnable = Runnable {
-            if (!completed) {
-                completed = true
+            if (completed.compareAndSet(false, true)) {
                 Log.w(TAG, "Timeout scraping detail: $url")
                 onError("Timeout beim Laden der Film-Details")
+                webViewRef?.destroy()
+                webViewRef = null
             }
         }
         mainHandler.postDelayed(timeoutRunnable, TIMEOUT_MS)
 
         mainHandler.post {
             val webView = WebView(context)
+            webViewRef = webView
             try {
                 webView.settings.apply {
                     javaScriptEnabled = true
@@ -182,12 +194,14 @@ class ScraperEngine @Inject constructor(
                     @JavascriptInterface
                     fun onDetailReady(json: String) {
                         mainHandler.removeCallbacks(timeoutRunnable)
-                        if (!completed) {
-                            completed = true
+                        if (completed.compareAndSet(false, true)) {
                             val film = parseDetailJson(json)
                             Log.d(TAG, "Scraped detail: ${film?.title} from $url")
                             onResult(film)
-                            mainHandler.post { webView.destroy() }
+                            mainHandler.post {
+                                webView.destroy()
+                                webViewRef = null
+                            }
                         }
                     }
                 }
@@ -205,12 +219,14 @@ class ScraperEngine @Inject constructor(
                     ) {
                         if (request.isForMainFrame) {
                             mainHandler.removeCallbacks(timeoutRunnable)
-                            if (!completed) {
-                                completed = true
+                            if (completed.compareAndSet(false, true)) {
                                 val msg = "WebView Fehler: ${error.description}"
                                 Log.e(TAG, msg)
                                 onError(msg)
-                                mainHandler.post { webView.destroy() }
+                                mainHandler.post {
+                                    webView.destroy()
+                                    webViewRef = null
+                                }
                             }
                         }
                     }
@@ -218,11 +234,11 @@ class ScraperEngine @Inject constructor(
                 webView.loadUrl(url)
             } catch (e: Exception) {
                 mainHandler.removeCallbacks(timeoutRunnable)
-                if (!completed) {
-                    completed = true
+                if (completed.compareAndSet(false, true)) {
                     Log.e(TAG, "Exception scraping detail $url", e)
                     onError(e.message ?: "Unbekannter Fehler")
                     webView.destroy()
+                    webViewRef = null
                 }
             }
         }
