@@ -7,7 +7,6 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -24,7 +23,6 @@ import net.nepuview.data.FavoriteFilm
 import net.nepuview.data.Film
 import net.nepuview.databinding.FragmentDetailBinding
 import net.nepuview.repository.FilmRepository
-import net.nepuview.viewmodel.HomeViewModel
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -37,6 +35,7 @@ class DetailFragment : Fragment() {
     @Inject lateinit var repo: FilmRepository
 
     private var currentFilm: Film? = null
+    private var detailLoaded = false
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentDetailBinding.inflate(inflater, container, false)
@@ -48,7 +47,10 @@ class DetailFragment : Fragment() {
         setupToolbar()
         setupClickListeners()
         loadBasicInfo()
-        loadFullDetail()
+        if (!detailLoaded) {
+            loadFullDetail()
+        }
+        observeFavoriteState()
     }
 
     private fun setupToolbar() {
@@ -92,29 +94,40 @@ class DetailFragment : Fragment() {
 
     private fun loadFullDetail() {
         viewLifecycleOwner.lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                repo.loadDetail(args.detailUrl).collect { film ->
-                    film ?: return@collect
-                    currentFilm = film
-                    binding.filmDescription.text = film.description
-                    binding.filmYear.text = film.year
-                    binding.filmDuration.text = film.duration
-                    binding.filmRating.text = "%.1f".format(film.rating)
-                    binding.filmGenres.text = film.genre.joinToString(" · ")
-                    binding.progressBanner.isVisible = false
+            repo.loadDetail(args.detailUrl).collect { film ->
+                film ?: return@collect
+                detailLoaded = true
+                currentFilm = film
+                binding.filmDescription.text = film.description
+                binding.filmYear.text = film.year
+                binding.filmDuration.text = film.duration
+                binding.filmRating.text = "%.1f".format(film.rating)
+                binding.filmGenres.text = film.genre.joinToString(" · ")
+                binding.btnWatch.isEnabled = film.playerUrl.isNotBlank()
+                binding.progressBanner.isVisible = false
 
-                    val progress = withContext(Dispatchers.IO) { repo.getProgress(film.id) }
-                    if (progress != null && progress.progressPercent > 0) {
-                        binding.progressBanner.isVisible = true
-                        binding.progressBar.progress = progress.progressPercent
-                        binding.progressText.text = "${progress.progressPercent}% gesehen"
-                    }
+                val progress = withContext(Dispatchers.IO) { repo.getProgress(film.id) }
+                if (progress != null && progress.progressPercent > 0) {
+                    binding.progressBanner.isVisible = true
+                    binding.progressBar.progress = progress.progressPercent
+                    binding.progressText.text = "${progress.progressPercent}% gesehen"
+                }
+            }
+        }
+    }
+
+    private fun observeFavoriteState() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                repo.isFavorite(args.filmId).collect { isFav ->
+                    binding.btnFavorite.isSelected = isFav
                 }
             }
         }
     }
 
     private fun navigateToPlayer(film: Film) {
+        if (film.playerUrl.isBlank()) return
         findNavController().navigate(
             DetailFragmentDirections.actionDetailToPlayer(
                 filmId = film.id,
@@ -127,7 +140,7 @@ class DetailFragment : Fragment() {
 
     private fun toggleFavorite(film: Film) {
         viewLifecycleOwner.lifecycleScope.launch {
-            repo.addFavorite(
+            repo.toggleFavorite(
                 FavoriteFilm(
                     filmId = film.id,
                     filmTitle = film.title,

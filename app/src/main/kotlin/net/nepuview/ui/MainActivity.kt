@@ -2,7 +2,6 @@ package net.nepuview.ui
 
 import android.os.Bundle
 import android.view.View
-import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
@@ -73,7 +72,15 @@ class MainActivity : AppCompatActivity() {
             val v = if (hide) View.GONE else View.VISIBLE
             findViewById<View?>(R.id.bottom_nav)?.visibility = v
             findViewById<View?>(R.id.navigation_rail)?.visibility = v
+            findViewById<View?>(R.id.navigation_drawer)?.visibility = v
         }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        val navHost = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+        val player = navHost?.childFragmentManager?.fragments?.firstOrNull { it is PlayerFragment } as? PlayerFragment
+        player?.enterPiP()
     }
 
     override fun onSupportNavigateUp(): Boolean =

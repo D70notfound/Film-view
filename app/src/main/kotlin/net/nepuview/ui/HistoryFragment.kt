@@ -50,7 +50,7 @@ class HistoryFragment : Fragment() {
         val swipe = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
             override fun onMove(rv: RecyclerView, vh: RecyclerView.ViewHolder, t: RecyclerView.ViewHolder) = false
             override fun onSwiped(vh: RecyclerView.ViewHolder, dir: Int) {
-                val h = historyList.getOrNull(vh.adapterPosition) ?: return
+                val h = historyList.getOrNull(vh.bindingAdapterPosition) ?: return
                 viewLifecycleOwner.lifecycleScope.launch { repo.deleteHistoryItem(h.id) }
             }
         }

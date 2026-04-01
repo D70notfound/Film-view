@@ -52,7 +52,7 @@ class FavoritesFragment : Fragment() {
             override fun onMove(rv: RecyclerView, vh: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder) = false
 
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
-                val pos = viewHolder.adapterPosition
+                val pos = viewHolder.bindingAdapterPosition
                 val fav = currentFavorites.getOrNull(pos) ?: return
                 viewLifecycleOwner.lifecycleScope.launch {
                     if (direction == ItemTouchHelper.RIGHT) {
