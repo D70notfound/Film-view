@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -94,23 +95,25 @@ class DetailFragment : Fragment() {
 
     private fun loadFullDetail() {
         viewLifecycleOwner.lifecycleScope.launch {
-            repo.loadDetail(args.detailUrl).collect { film ->
-                film ?: return@collect
-                detailLoaded = true
-                currentFilm = film
-                binding.filmDescription.text = film.description
-                binding.filmYear.text = film.year
-                binding.filmDuration.text = film.duration
-                binding.filmRating.text = "%.1f".format(film.rating)
-                binding.filmGenres.text = film.genre.joinToString(" · ")
-                binding.btnWatch.isEnabled = film.playerUrl.isNotBlank()
-                binding.progressBanner.isVisible = false
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                repo.loadDetail(args.detailUrl).collect { film ->
+                    film ?: return@collect
+                    detailLoaded = true
+                    currentFilm = film
+                    binding.filmDescription.text = film.description
+                    binding.filmYear.text = film.year
+                    binding.filmDuration.text = film.duration
+                    binding.filmRating.text = "%.1f".format(film.rating)
+                    binding.filmGenres.text = film.genre.joinToString(" · ")
+                    binding.btnWatch.isEnabled = film.playerUrl.isNotBlank()
+                    binding.progressBanner.isVisible = false
 
-                val progress = withContext(Dispatchers.IO) { repo.getProgress(film.id) }
-                if (progress != null && progress.progressPercent > 0) {
-                    binding.progressBanner.isVisible = true
-                    binding.progressBar.progress = progress.progressPercent
-                    binding.progressText.text = "${progress.progressPercent}% gesehen"
+                    val progress = withContext(Dispatchers.IO) { repo.getProgress(film.id) }
+                    if (progress != null && progress.progressPercent > 0) {
+                        binding.progressBanner.isVisible = true
+                        binding.progressBar.progress = progress.progressPercent
+                        binding.progressText.text = "${progress.progressPercent}% gesehen"
+                    }
                 }
             }
         }

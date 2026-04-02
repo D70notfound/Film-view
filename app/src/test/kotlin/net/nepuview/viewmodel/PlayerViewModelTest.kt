@@ -66,16 +66,15 @@ class PlayerViewModelTest {
     fun `saveProgress calls repo when filmId is set`() = runTest {
         viewModel.setCurrentFilm("film1", "Inception", "poster.jpg", "https://nepu.to/watch/1")
         viewModel.saveProgress(30_000L, 120_000L)
-        verify(repo).saveProgress(
-            WatchProgress(
-                filmId = "film1",
-                filmTitle = "Inception",
-                posterUrl = "poster.jpg",
-                playerUrl = "https://nepu.to/watch/1",
-                positionMs = 30_000L,
-                durationMs = 120_000L
-            )
-        )
+        val captor = org.mockito.ArgumentCaptor.forClass(WatchProgress::class.java)
+        verify(repo).saveProgress(captor.capture())
+        val saved = captor.value
+        assertEquals("film1", saved.filmId)
+        assertEquals("Inception", saved.filmTitle)
+        assertEquals("poster.jpg", saved.posterUrl)
+        assertEquals("https://nepu.to/watch/1", saved.playerUrl)
+        assertEquals(30_000L, saved.positionMs)
+        assertEquals(120_000L, saved.durationMs)
     }
 
     @Test

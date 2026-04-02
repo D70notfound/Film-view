@@ -10,7 +10,8 @@ import net.nepuview.data.Film
 import net.nepuview.databinding.ItemFilmPageBinding
 
 class FilmPagerAdapter(
-    private val onClick: (Film) -> Unit
+    private val onClick: (Film) -> Unit,
+    private val onFavorite: ((Film) -> Unit)? = null
 ) : ListAdapter<Film, FilmPagerAdapter.FilmViewHolder>(DIFF) {
 
     companion object {
@@ -34,6 +35,7 @@ class FilmPagerAdapter(
             binding.root.setOnClickListener { onClick(film) }
             binding.btnFavorite.setOnClickListener {
                 animateHeart(binding.btnFavorite)
+                onFavorite?.invoke(film)
             }
         }
 

@@ -2,7 +2,9 @@ package net.nepuview.ui
 
 import android.os.Bundle
 import android.view.View
+import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
@@ -34,12 +36,21 @@ class MainActivity : AppCompatActivity() {
 
         when {
             widthDp >= 840 -> {
-                // Tablet: NavigationDrawer
+                // Tablet: NavigationDrawer with toggle
                 findViewById<View?>(R.id.bottom_nav)?.visibility = View.GONE
                 findViewById<View?>(R.id.navigation_rail)?.visibility = View.GONE
+                val drawerLayout = findViewById<DrawerLayout?>(R.id.drawer_layout)
                 findViewById<com.google.android.material.navigation.NavigationView?>(R.id.navigation_drawer)?.let {
                     it.visibility = View.VISIBLE
                     it.setupWithNavController(navController)
+                    if (drawerLayout != null) {
+                        val toggle = ActionBarDrawerToggle(
+                            this, drawerLayout, R.string.app_name, R.string.app_name
+                        )
+                        drawerLayout.addDrawerListener(toggle)
+                        toggle.syncState()
+                        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+                    }
                 }
             }
             widthDp >= 600 -> {
