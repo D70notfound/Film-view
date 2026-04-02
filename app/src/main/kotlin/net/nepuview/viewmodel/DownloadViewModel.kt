@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import net.nepuview.data.DownloadedFilm
 import net.nepuview.repository.DownloadRepository
@@ -24,6 +25,9 @@ class DownloadViewModel @Inject constructor(
         .map { it ?: 0L }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
+    private val _userMessage = Channel<String>(Channel.BUFFERED)
+    val userMessage: kotlinx.coroutines.flow.Flow<String> = _userMessage.receiveAsFlow()
+
     val isLowStorage: StateFlow<Boolean> = flow {
         while (true) {
             emit(downloadRepo.isLowStorage())
@@ -32,7 +36,12 @@ class DownloadViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), downloadRepo.isLowStorage())
 
     fun startDownload(filmId: String, filmTitle: String, posterUrl: String, m3u8Url: String, quality: String = "auto") {
-        downloadRepo.startDownload(filmId, m3u8Url)
+        if (!downloadRepo.startDownload(filmId, m3u8Url)) {
+            viewModelScope.launch {
+                _userMessage.send("Kein WLAN verfügbar. Download wird nur über WLAN gestartet.")
+            }
+            return
+        }
         viewModelScope.launch {
             filmRepo.addDownloadRecord(
                 DownloadedFilm(

@@ -1,9 +1,11 @@
 package net.nepuview.ui
 
+import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -41,9 +43,16 @@ class SearchFragment : Fragment() {
 
     private var searchBarHasFocus = false
 
+    private fun hideKeyboard() {
+        val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(binding.searchBar.windowToken, 0)
+        binding.searchBar.clearFocus()
+    }
+
     private fun setupSearchBar() {
         binding.searchBar.setOnEditorActionListener { _, _, _ ->
             viewModel.search(binding.searchBar.text.toString())
+            hideKeyboard()
             true
         }
         binding.searchBar.setOnFocusChangeListener { _, hasFocus ->
@@ -76,7 +85,10 @@ class SearchFragment : Fragment() {
                             val chip = Chip(requireContext()).apply {
                                 text = term
                                 isCloseIconVisible = true
-                                setOnClickListener { viewModel.search(term) }
+                                setOnClickListener {
+                                    viewModel.search(term)
+                                    hideKeyboard()
+                                }
                                 setOnCloseIconClickListener { viewModel.removeHistory(term) }
                             }
                             binding.historyGroup.addView(chip)

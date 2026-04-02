@@ -18,13 +18,10 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.Dispatchers
 import net.nepuview.data.FavoriteFilm
 import net.nepuview.data.Film
 import net.nepuview.databinding.FragmentDetailBinding
-import net.nepuview.repository.FilmRepository
-import javax.inject.Inject
+import net.nepuview.viewmodel.DetailViewModel
 
 @AndroidEntryPoint
 class DetailFragment : Fragment() {
@@ -32,11 +29,7 @@ class DetailFragment : Fragment() {
     private var _binding: FragmentDetailBinding? = null
     private val binding get() = _binding!!
     private val args: DetailFragmentArgs by navArgs()
-
-    @Inject lateinit var repo: FilmRepository
-
-    private var currentFilm: Film? = null
-    private var detailLoaded = false
+    private val viewModel: DetailViewModel by viewModels()
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentDetailBinding.inflate(inflater, container, false)
@@ -48,9 +41,10 @@ class DetailFragment : Fragment() {
         setupToolbar()
         setupClickListeners()
         loadBasicInfo()
-        if (!detailLoaded) {
-            loadFullDetail()
-        }
+        // Kick off scraping once; ViewModel caches the result so returning
+        // from the player never triggers a second network request.
+        viewModel.loadDetail(args.detailUrl)
+        observeFilm()
         observeFavoriteState()
     }
 
@@ -59,8 +53,12 @@ class DetailFragment : Fragment() {
     }
 
     private fun setupClickListeners() {
-        binding.btnWatch.setOnClickListener { currentFilm?.let { navigateToPlayer(it) } }
-        binding.btnFavorite.setOnClickListener { currentFilm?.let { toggleFavorite(it) } }
+        binding.btnWatch.setOnClickListener {
+            viewModel.film.value?.let { navigateToPlayer(it) }
+        }
+        binding.btnFavorite.setOnClickListener {
+            viewModel.film.value?.let { toggleFavorite(it) }
+        }
     }
 
     private fun loadBasicInfo() {
@@ -93,13 +91,11 @@ class DetailFragment : Fragment() {
         }
     }
 
-    private fun loadFullDetail() {
+    private fun observeFilm() {
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                repo.loadDetail(args.detailUrl).collect { film ->
+                viewModel.film.collect { film ->
                     film ?: return@collect
-                    detailLoaded = true
-                    currentFilm = film
                     binding.filmDescription.text = film.description
                     binding.filmYear.text = film.year
                     binding.filmDuration.text = film.duration
@@ -107,8 +103,12 @@ class DetailFragment : Fragment() {
                     binding.filmGenres.text = film.genre.joinToString(" · ")
                     binding.btnWatch.isEnabled = film.playerUrl.isNotBlank()
                     binding.progressBanner.isVisible = false
-
-                    val progress = withContext(Dispatchers.IO) { repo.getProgress(film.id) }
+                }
+            }
+        }
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.progress.collect { progress ->
                     if (progress != null && progress.progressPercent > 0) {
                         binding.progressBanner.isVisible = true
                         binding.progressBar.progress = progress.progressPercent
@@ -122,7 +122,7 @@ class DetailFragment : Fragment() {
     private fun observeFavoriteState() {
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                repo.isFavorite(args.filmId).collect { isFav ->
+                viewModel.isFavorite(args.filmId).collect { isFav ->
                     binding.btnFavorite.isSelected = isFav
                 }
             }
@@ -142,17 +142,15 @@ class DetailFragment : Fragment() {
     }
 
     private fun toggleFavorite(film: Film) {
-        viewLifecycleOwner.lifecycleScope.launch {
-            repo.toggleFavorite(
-                FavoriteFilm(
-                    filmId = film.id,
-                    filmTitle = film.title,
-                    posterUrl = film.posterUrl,
-                    detailUrl = film.detailUrl,
-                    rating = film.rating
-                )
+        viewModel.toggleFavorite(
+            FavoriteFilm(
+                filmId = film.id,
+                filmTitle = film.title,
+                posterUrl = film.posterUrl,
+                detailUrl = film.detailUrl,
+                rating = film.rating
             )
-        }
+        )
     }
 
     override fun onDestroyView() {

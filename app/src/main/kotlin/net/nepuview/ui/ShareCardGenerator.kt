@@ -41,6 +41,7 @@ object ShareCardGenerator {
         poster?.let {
             val scaled = Bitmap.createScaledBitmap(it, 280, height, true)
             canvas.drawBitmap(scaled, 0f, 0f, null)
+            scaled.recycle()
         }
 
         // Title
