@@ -40,7 +40,7 @@ class ScraperEngine @Inject constructor(
     fun loadHome(mood: String? = null): Flow<List<Film>> = callbackFlow {
         val url = if (mood != null) "$BASE_URL/?genre=${mood}" else BASE_URL
         var webViewRef: WebView? = null
-        scrapeFilmList(url,
+        val timeoutRef = scrapeFilmList(url,
             onResult = { films -> trySend(films) },
             onError = { msg ->
                 Log.e(TAG, "loadHome($mood) failed: $msg")
@@ -49,7 +49,9 @@ class ScraperEngine @Inject constructor(
             onWebViewCreated = { webViewRef = it }
         )
         awaitClose {
-            Handler(Looper.getMainLooper()).post {
+            val mainHandler = Handler(Looper.getMainLooper())
+            timeoutRef?.let { mainHandler.removeCallbacks(it) }
+            mainHandler.post {
                 webViewRef?.destroy()
                 webViewRef = null
             }
@@ -59,7 +61,7 @@ class ScraperEngine @Inject constructor(
     fun search(query: String): Flow<List<Film>> = callbackFlow {
         val url = "$SEARCH_URL${Uri.encode(query.trim())}"
         var webViewRef: WebView? = null
-        scrapeFilmList(url,
+        val timeoutRef = scrapeFilmList(url,
             onResult = { films -> trySend(films) },
             onError = { msg ->
                 Log.e(TAG, "search($query) failed: $msg")
@@ -68,7 +70,9 @@ class ScraperEngine @Inject constructor(
             onWebViewCreated = { webViewRef = it }
         )
         awaitClose {
-            Handler(Looper.getMainLooper()).post {
+            val mainHandler = Handler(Looper.getMainLooper())
+            timeoutRef?.let { mainHandler.removeCallbacks(it) }
+            mainHandler.post {
                 webViewRef?.destroy()
                 webViewRef = null
             }
@@ -77,7 +81,7 @@ class ScraperEngine @Inject constructor(
 
     fun loadDetail(detailUrl: String): Flow<Film?> = callbackFlow {
         var webViewRef: WebView? = null
-        scrapeDetail(detailUrl,
+        val timeoutRef = scrapeDetail(detailUrl,
             onResult = { film -> trySend(film) },
             onError = { msg ->
                 Log.e(TAG, "loadDetail($detailUrl) failed: $msg")
@@ -86,7 +90,9 @@ class ScraperEngine @Inject constructor(
             onWebViewCreated = { webViewRef = it }
         )
         awaitClose {
-            Handler(Looper.getMainLooper()).post {
+            val mainHandler = Handler(Looper.getMainLooper())
+            timeoutRef?.let { mainHandler.removeCallbacks(it) }
+            mainHandler.post {
                 webViewRef?.destroy()
                 webViewRef = null
             }
@@ -99,7 +105,7 @@ class ScraperEngine @Inject constructor(
         onResult: (List<Film>) -> Unit,
         onError: (String) -> Unit,
         onWebViewCreated: ((WebView) -> Unit)? = null
-    ) {
+    ): Runnable {
         val mainHandler = Handler(Looper.getMainLooper())
         val completed = AtomicBoolean(false)
         var webViewRef: WebView? = null
@@ -179,6 +185,7 @@ class ScraperEngine @Inject constructor(
                 }
             }
         }
+        return timeoutRunnable
     }
 
     @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
@@ -187,7 +194,7 @@ class ScraperEngine @Inject constructor(
         onResult: (Film?) -> Unit,
         onError: (String) -> Unit,
         onWebViewCreated: ((WebView) -> Unit)? = null
-    ) {
+    ): Runnable {
         val mainHandler = Handler(Looper.getMainLooper())
         val completed = AtomicBoolean(false)
         var webViewRef: WebView? = null
@@ -267,6 +274,7 @@ class ScraperEngine @Inject constructor(
                 }
             }
         }
+        return timeoutRunnable
     }
 
     private fun parseFilmListJson(json: String): List<Film> {

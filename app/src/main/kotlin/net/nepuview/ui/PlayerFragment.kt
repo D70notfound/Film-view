@@ -240,6 +240,19 @@ class PlayerFragment : Fragment() {
         }
     }
 
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode)
+        if (_binding == null) return
+        if (isInPictureInPictureMode) {
+            // Hide controls in PiP mode
+            binding.btnDownload.visibility = View.GONE
+            enterFullscreen()
+        } else {
+            binding.btnDownload.isVisible = viewModel.m3u8Url.value != null
+            exitFullscreen()
+        }
+    }
+
     override fun onPause() {
         super.onPause()
         binding.webView.onPause()

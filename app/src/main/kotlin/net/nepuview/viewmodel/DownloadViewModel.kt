@@ -43,6 +43,24 @@ class DownloadViewModel @Inject constructor(
                     quality = quality
                 )
             )
+            // Monitor download size and update the record when bytes are downloaded
+            updateDownloadSize(filmId)
+        }
+    }
+
+    private suspend fun updateDownloadSize(filmId: String) {
+        val dm = downloadRepo.getDownloadManager()
+        repeat(120) { // check for up to 10 minutes
+            delay(5_000)
+            val dl = dm.downloadIndex.getDownload(filmId) ?: return
+            if (dl.bytesDownloaded > 0) {
+                filmRepo.addDownloadRecord(
+                    downloads.value.find { it.filmId == filmId }?.copy(
+                        fileSizeBytes = dl.bytesDownloaded
+                    ) ?: return
+                )
+            }
+            if (dl.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED) return
         }
     }
 

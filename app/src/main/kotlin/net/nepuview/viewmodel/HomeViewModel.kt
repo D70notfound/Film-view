@@ -7,6 +7,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import net.nepuview.data.Film
 import net.nepuview.data.FilmCategory
 import net.nepuview.data.WatchlistFilm
@@ -54,11 +56,14 @@ class HomeViewModel @Inject constructor(
                 return@launch
             }
             try {
+                val semaphore = Semaphore(2)
                 val categories = coroutineScope {
                     categoryDefs.map { (label, genre) ->
                         async {
-                            val films = repo.loadHome(genre).firstOrNull() ?: emptyList()
-                            FilmCategory(label, films)
+                            semaphore.withPermit {
+                                val films = repo.loadHome(genre).firstOrNull() ?: emptyList()
+                                FilmCategory(label, films)
+                            }
                         }
                     }.map { it.await() }
                         .filter { it.films.isNotEmpty() }

@@ -7,6 +7,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import net.nepuview.data.Film
@@ -33,12 +34,15 @@ class SearchViewModel @Inject constructor(
     private val _history = MutableStateFlow(loadHistory())
     val history: StateFlow<List<String>> = _history.asStateFlow()
 
+    private var searchJob: Job? = null
+
     fun search(q: String) {
         if (q.isBlank()) return
         _query.value = q
         _isLoading.value = true
         saveHistory(q)
-        viewModelScope.launch {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             repo.search(q)
                 .catch { _isLoading.value = false }
                 .collect { films ->
