@@ -6,7 +6,9 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -174,6 +176,17 @@ class ScraperEngine @Inject constructor(
                         }
                     }
                 }
+                webView.webChromeClient = object : WebChromeClient() {
+                    override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
+                        val level = msg.messageLevel()
+                        val text = "JS [${msg.sourceId()}:${msg.lineNumber()}] ${msg.message()}"
+                        if (level == ConsoleMessage.MessageLevel.ERROR ||
+                            level == ConsoleMessage.MessageLevel.WARNING) {
+                            Log.w(TAG, text)
+                        }
+                        return true
+                    }
+                }
                 webView.loadUrl(url)
             } catch (e: Exception) {
                 mainHandler.removeCallbacks(timeoutRunnable)
@@ -261,6 +274,17 @@ class ScraperEngine @Inject constructor(
                                 }
                             }
                         }
+                    }
+                }
+                webView.webChromeClient = object : WebChromeClient() {
+                    override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
+                        val level = msg.messageLevel()
+                        val text = "JS [${msg.sourceId()}:${msg.lineNumber()}] ${msg.message()}"
+                        if (level == ConsoleMessage.MessageLevel.ERROR ||
+                            level == ConsoleMessage.MessageLevel.WARNING) {
+                            Log.w(TAG, text)
+                        }
+                        return true
                     }
                 }
                 webView.loadUrl(url)
@@ -394,10 +418,11 @@ class ScraperEngine @Inject constructor(
                             rating: ratingEl ? parseFloat(ratingEl.textContent) || 0 : 0,
                             type: typeEl ? typeEl.textContent.trim().toLowerCase() : 'movie'
                         });
-                    } catch(itemErr) {}
+                    } catch(itemErr) { console.error('ScraperEngine: card parse error', itemErr); }
                 });
                 Android.onFilmsReady(JSON.stringify(results));
             } catch(e) {
+                console.error('ScraperEngine: film list JS failed: ' + e.message);
                 Android.onFilmsReady('[]');
             }
         })();
@@ -471,6 +496,7 @@ class ScraperEngine @Inject constructor(
                     url: window.location.href
                 }));
             } catch(e) {
+                console.error('ScraperEngine: detail JS failed: ' + e.message);
                 Android.onDetailReady('{}');
             }
         })();
