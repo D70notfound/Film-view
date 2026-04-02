@@ -22,8 +22,12 @@ class DownloadRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val downloadManagerProvider: DownloadManagerProvider
 ) {
-    fun startDownload(filmId: String, m3u8Url: String) {
-        if (isWifiOnly() && !isOnWifi()) return
+    /**
+     * Returns true if the download was queued, false if it was blocked by the
+     * "WiFi only" setting while the device is not on WiFi.
+     */
+    fun startDownload(filmId: String, m3u8Url: String): Boolean {
+        if (isWifiOnly() && !isOnWifi()) return false
 
         val request = DownloadRequest.Builder(filmId, Uri.parse(m3u8Url))
             .setMimeType(MimeTypes.APPLICATION_M3U8)
@@ -34,6 +38,7 @@ class DownloadRepository @Inject constructor(
             request,
             false
         )
+        return true
     }
 
     fun isWifiOnly(): Boolean {
@@ -89,11 +94,11 @@ class DownloadRepository @Inject constructor(
         )
     }
 
-    fun getDownloadManager() = downloadManagerProvider.get(context)
+    fun getDownloadManager() = downloadManagerProvider.get(context, getDownloadDirectory())
 
-    /** Returns free storage in bytes. */
+    /** Returns free storage in bytes on the active download volume. */
     fun freeStorageBytes(): Long {
-        val stat = StatFs(context.filesDir.absolutePath)
+        val stat = StatFs(getDownloadDirectory().absolutePath)
         return stat.availableBlocksLong * stat.blockSizeLong
     }
 

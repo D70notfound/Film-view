@@ -19,9 +19,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.navArgs
+import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import net.nepuview.databinding.FragmentPlayerBinding
+import net.nepuview.viewmodel.DownloadViewModel
 import net.nepuview.viewmodel.PlayerViewModel
 
 private const val POSITION_JS = """
@@ -45,6 +47,7 @@ class PlayerFragment : Fragment() {
     private val binding get() = _binding!!
     private val args: PlayerFragmentArgs by navArgs()
     private val viewModel: PlayerViewModel by activityViewModels()
+    private val downloadViewModel: DownloadViewModel by viewModels()
 
     private val progressHandler = Handler(Looper.getMainLooper())
     private val saveProgressRunnable = object : Runnable {
@@ -84,6 +87,7 @@ class PlayerFragment : Fragment() {
         viewModel.setCurrentFilm(args.filmId, args.filmTitle, args.posterUrl, args.playerUrl)
         setupWebView()
         observeM3u8()
+        observeDownloadMessages()
         progressHandler.postDelayed(saveProgressRunnable, 5_000)
         viewModel.addToHistory()
     }
@@ -173,6 +177,16 @@ class PlayerFragment : Fragment() {
 
     private fun blockResponse() =
         WebResourceResponse("text/plain", "utf-8", null)
+
+    private fun observeDownloadMessages() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                downloadViewModel.userMessage.collect { message ->
+                    Snackbar.make(binding.root, message, Snackbar.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
 
     private fun observeM3u8() {
         viewLifecycleOwner.lifecycleScope.launch {

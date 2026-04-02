@@ -19,10 +19,9 @@ class DownloadManagerProvider @Inject constructor() {
     private var cache: SimpleCache? = null
 
     @Synchronized
-    fun get(context: Context): DownloadManager {
+    fun get(context: Context, downloadDir: File = File(context.filesDir, "downloads")): DownloadManager {
         if (downloadManager == null) {
             val databaseProvider = StandaloneDatabaseProvider(context)
-            val downloadDir = File(context.filesDir, "downloads")
             downloadDir.mkdirs()
 
             val localCache = SimpleCache(downloadDir, NoOpCacheEvictor(), databaseProvider)
